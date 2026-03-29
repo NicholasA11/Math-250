@@ -1,0 +1,307 @@
+---
+title: "How Do You Maximize Profit in the Horror Industry?"
+author: "Nicholas Abraham"
+format: html
+embed-resources: true
+---
+
+## Horror Film Industry Continues to Grow
+
+The film industry is a very competitive field, with many different genres that appeal to different audiences. One of these genres is the very popular Horror Films. Horror is  the 6th most popular movie genre in the US and Canada from 1994 - 2024, bringing in a revenue of $15.96 billion[^1]. This genre has a growing competition, with a steady increase in the amount of horror films released each year, the amount of releases per year has more than doubled from 26 in 2015, to 55 in 2024[^2]. Horror movies are no longer played just at Halloween time. The genre has grown out of spooky season and is watched all year long. This interest allows for more opportunity of profit for filmmakers. In 2025 two of the three highest-grossing original titles of the year (through October) have been horror movies[^3]. So in this increasing market how can filmmakers maximize their profit? Making a film is big investment, and filmmakers need to do everything they can to maximize their chances at turning profit. By taking a look at "Horror Movies" (which you can read about here[^4]) this question will be explored.
+
+## Data
+
+```{r}
+#| label: setup
+#| message: false
+#| warning: false
+library(tidyverse)
+library(dplyr)
+library(gt)
+library(readxl)
+library(scales)
+library(patchwork)
+movies <- read_csv("horror_movies.csv")
+```
+
+```{r}
+#| label: data set up
+movies_w_budgets <- movies %>%
+  filter(budget > 0,
+         revenue > 0) %>%
+  mutate(profit = revenue - budget)
+```
+
+First, all the movies that have no budget or revenue must be removed from the data set, as they are considered NA data and cannot be used. If the zeros are used it will effect the averages and skew the data.
+
+## Does a Higher Budget Help Secure More Revenue and Profits?
+
+```{r}
+#| label: Revenue V Budget
+#| warning: false
+#| fig-alt: A point plot with regression lines showing revenue VS budget. The data is split into two colors represting if the movie turned a profit or not. It is seen that a higher budget leads to a higher revenue, but profit is uneffected by these. It is possible to make a profit with any budget.
+
+ggplot(movies_w_budgets,
+       aes(x = budget,
+           y = revenue,
+           color = (profit > 0))) +
+  geom_point() + 
+  geom_smooth(se = FALSE) +
+  scale_y_log10(labels = label_dollar()) +
+  scale_x_log10(labels = label_dollar()) + 
+  scale_color_manual(values = c("darkorange", "steelblue")) +
+  theme_minimal() +
+  labs(x = "Budget (US Dollars)",
+       y = "Revenue (US Dollars)",
+       color = "Made Profit?",
+       title = "Money Can't Buy Success")
+```
+It can be seen that there is a positive linear correlation between a higher budget leading to a higher revenue. However, it is clear that a higher budget does not guarantee profit. Profit can be made with any budget a company may have, and they must also be careful as it is always possible that they don't make profit, even with higher budgets.
+
+It should be noted that if a film "broke even" (profit of 0) it is collected as not making profit ("FALSE").
+
+**Also Note** the scale of the axes, they are on a logarithmic scale, *not* linear.
+
+## Runtimes Effect Profit
+
+```{r}
+#| label: Runtime and Profit
+#| warning: false
+#| fig-alt: A point plot with a regression line showing runtime VS profit. it can be seen that there is a sweet spot (concentrated data points of profit) for profit at a runtime of about 85 to 115 minutes.
+
+movies_profit <- movies_w_budgets %>%
+  filter(profit > 0)
+
+ggplot(movies_profit,
+       aes(x = runtime,
+           y = profit)) +
+  geom_point() +
+  geom_smooth(se = FALSE, color = "red2") +
+  scale_y_log10(label = label_dollar()) +
+  theme_minimal() +
+  labs(x = "Run Time (Minutes)",
+       y = "Profit (US Dollars)",
+       title = "Run Time Has a Sweet Spot")
+```
+It can be seen by this graph that, while profits have some variation, there is a condensed spot of high profit at the ~85 to ~115 minutes length. Majority of movies at this length turn high profits. This shows that in order to maximize profit, a run time of 85 - 115 minutes is desired. You can see that there is still high profit movies outside this range, but the sample size is less. These movies above the range do turn high profit. So a movie longer than 115 minutes may be considered, but less than 85 minutes should be avoided, as they have less profit.
+
+**Note:** Movies that made no profit have been omitted from this graph because this graph focus on movies that have made a profit, in order to maximize the profit. The negative and 0 values of profit would skew the data distort the visual trend of the graph, and this trend is not goal of this graph. Also, The scale of the y-axis is *not* linear, it is logarithmic.
+
+```{r}
+#| label: Runtime Table
+#| fig-alt: A table showing the numerical data for the previous graph. It shows Run Time (Min),	Average Profit,	Median Profit, Number of Movies, and the percetage of Movies Profitable. The row with runtime of between 85-115 minutes is highlited to represent the sweet spot found above. It shows that movies with >115 minute runtime is more profitable.
+
+movies_runtime <- movies_w_budgets %>%
+  mutate(runtime_group = case_when(runtime < 85 ~ "<85 min",
+                                   runtime <= 115 ~ "85-115 min",
+                                   TRUE ~ ">115 min"))
+
+runtime_summary <- movies_runtime %>%
+  group_by(runtime_group) %>%
+  summarize(avg_profit = mean(profit, na.rm = TRUE),
+            median_profit = median(profit, na.rm = TRUE),
+            n_movies = n(),
+            pct_profitable = mean(profit > 0) * 100) %>%
+  gt() %>%
+  fmt_currency(columns = c(avg_profit, median_profit),
+               currency = "USD") %>%
+  fmt_number(columns = c(pct_profitable),
+             decimals = 1) %>%
+  cols_label(avg_profit = "Average Profit",
+             median_profit = "Median Profit",
+             runtime_group = "Run Time (Min)",
+             n_movies = "Number of Movies",
+             pct_profitable = "% of Movies Profitable") %>%
+  tab_header(title = "Profit by Runtime") %>%
+  tab_style(style = list(cell_fill(color = "lightgreen")),
+            locations = cells_body(rows = runtime_group == "85-115 min")) 
+
+runtime_summary
+  
+```
+This table shows a numerical representation of the previous graph. Highlighted in green is the "Sweet spot" that was seen in "Run Time Has a Sweet Spot". The sweet spot on the table does not exactly align with that of the graph, this is because the table shows raw profits in USD, while the plot uses a log scale to show the trend. As a result, extreme outliers in profit appear larger in the table than in the visual trend. The outliers in the table effect the averages more than in the plot. The sample sizes for each section should also be noted; the sample size for the sweet spot is way larger than the other two rows, meaning the other two rows are more susceptible to outliers. The table shows the sweet spot also makes high profit.
+
+**Note:** The numerical data was calculated *with* the movies that did not turn a profit, unlike the previous graph, these negative values and zeros have an effect on the averages, changing the sweet spot that was observed in the graph.
+
+```{r}
+#| label: Multi Graph For Ratings
+#| fig.width: 20
+#| fig.height: 9
+#| warning: false
+#| fig-alt: This figure shows 2 point plots with regression lines side by side. The data is split into two colors representing if the movie turned a profit or not. Average rating is on the y-axis, and budget and run time on the x-axis. it shows across all budgets, higher ratings turn a profit, and movies in the sweet spot disscused above are more profitable.
+
+num_1 <- ggplot(movies_w_budgets,
+                aes(y = vote_average,
+                x = budget,
+                color = (profit > 0))) +
+                geom_point(show.legend = FALSE) +
+                geom_smooth(se = FALSE,
+                            show.legend = FALSE) +
+                scale_x_log10(label = label_dollar()) +
+                theme_minimal() +
+                scale_color_manual(values = c("darkorange", "steelblue")) +
+                theme(axis.title = element_text(size = 22),
+                      axis.text = element_text(size = 14),
+                      plot.title = element_text(size = 28)) +
+                labs(y = "Average Rating",
+                     x = "Budget (US Dollars)",
+                     title = "Secrets to Higher Ratings")
+
+num_2 <- ggplot(movies_w_budgets,
+                aes(y = vote_average,
+                x = runtime,
+                color = (profit > 0))) +
+                geom_point() + 
+                geom_smooth(se = FALSE) +
+                theme_minimal() +
+                scale_color_manual(values = c("darkorange", "steelblue")) +
+                theme(axis.title = element_text(size = 22),
+                      axis.text = element_text(size = 14),
+                      legend.text = element_text(size = 20),
+                      legend.title = element_text(size = 22)) +
+                labs(y = NULL,
+                     x = "Run Time (minutes)",
+                     color = "Made Profit?")
+
+num_1 + num_2
+```
+
+It is observed that higher ratings consistently lead to more profit. In order to maximize profit, you need to aim for higher ratings (of course), but how do you achieve these higher ratings? When this is compared to the ratings of different run times, the same trend as in the graph above ("Run time Has a Sweet Spot") is observed. There is a high density of profitable movies within the ~85 to ~115 minutes run time range. Not only does this range lead to higher profits, but also higher ratings. The comparison of these two graphs show how run time relates to ratings, and how ratings are correlated to profit at all budgets.
+
+**Note:** The scale of the x-axis, are on a logarithmic scale, *not* linear (for the budget, run time *is* linear).
+
+## Advertising Effects
+
+```{r}
+#| label: Tagline
+#| warning: false
+#| fig-alt: This chart shows a box plot with an overlaying violin plot. It shows true/false for having a tagline on the x-axis and profit on the y-axis. It shows that having a tagline is more profitable than not having one. This is supported by the violin plot.
+
+movies_tagline <- movies_w_budgets %>%
+  mutate(has_tagline = !is.na(tagline))
+
+ggplot(movies_tagline,
+       aes(x = has_tagline,
+           y = profit,
+           fill = has_tagline)) +
+  geom_boxplot(show.legend = FALSE) +
+  geom_violin(alpha = .1,
+              show.legend = FALSE) + 
+  scale_y_log10(labels = label_dollar()) + 
+  theme_minimal() +
+  scale_fill_brewer(palette = "Dark2") + 
+  labs(x = "Has a Tagline",
+       y = "Profit (US dollars)",
+       title = "Taglines Speak Money")
+```
+
+Many movies in the data set do not have a tagline, does this impact their profits? The movies were put into two groups, if it has a tagline or not. This graph does not take into account if it is a *good* tagline, just the fact it has one. It is seen from the box plot that the average profit of movies with a tagline is greater than those without. The overlapping violin plot helps support that idea, by showing the density of movies is condensed at higher profits for taglines. For the movies without a tagline it is observed they have less profit, and majority of the density is at lower profits. A tagline is very impactful to a movies profits, and movies should follow along this trend to maximize their profits.
+
+**Note:** The scale of the y-axis is *not* linear, it is logarithmic.
+
+```{r}
+#| label: Tagline Table
+#| fig-alt: This table shows the numerical data for the previous graph. It shows Tagline Status,	Average Profit,	Median Profit,	Number of Movies, and percent of Movies Profitable. It shows that movies with a tagline are more profitable.
+
+movies_table <- movies_w_budgets %>%
+  mutate(has_tagline = case_when(!is.na(tagline) & tagline != "" ~ "Has Tagline",
+                                 TRUE ~ "No Tagline"),
+         is_franchise = case_when(!is.na(collection) 
+                                  & collection != "" ~ "Franchise",
+                                  TRUE ~ "Non-Franchise"))
+
+tagline_table <- movies_table %>%
+  group_by(has_tagline) %>%
+  summarize(avg_profit = mean(profit, na.rm = TRUE),
+            median_profit = median(profit, na.rm = TRUE),
+            n_movies = n(),
+            pct_profitable = mean(profit > 0) * 100) %>%
+  gt() %>%
+  fmt_currency(columns = c(avg_profit, median_profit),
+               currency = "USD", 
+               decimals = 0) %>%
+  fmt_number(columns = c(pct_profitable), decimals = 1) %>%
+  cols_label(has_tagline = "Tagline Status",
+            avg_profit = "Average Profit",
+            median_profit = "Median Profit",
+            n_movies = "Number of Movies",
+            pct_profitable = "% of Movies Profitable") %>%
+  tab_header(title = "Profits by Tagline Presence") %>%
+  tab_style(style = list(cell_fill(color = "lightgreen")),
+            locations = cells_body(rows = has_tagline == "Has Tagline"))
+
+tagline_table
+```
+
+The numerical data for the graph above ("Taglines Speak Money") is seen in this table. It can be seen that the movies that have a tagline are way more profitable (about 7 times more!) than movies that don't have one. This helps put into perspective the importance of a tagline in your advertising. 69.4% of movies with a tagline are profitable, while only 48.9% are with no tagline. So with no tagline, you are likely to lose money over half the time. Another important observation is that the median profit of not having a tagline is $0. This means that majority of the movies with no taglines broke even. In order to maximize your profit, you should create a tagline for your advertising. 
+
+```{r}
+#| label: Franchise
+#| warning: false
+#| fig-alt: This chart shows a box plot with an overlaying violin plot. It shows true/false for being a franchise on the x-axis and profit on the y-axis. It shows that being in a franchise is more profitable than not. This is supported by the violin plot.
+
+movies_fran <- movies_w_budgets %>%
+  mutate(made_profit = profit > 0,
+    is_franchise = !is.na(collection))
+
+ggplot(movies_fran,
+       aes(x = is_franchise,
+           y = profit,
+           fill = is_franchise)) +
+  geom_boxplot(show.legend = FALSE) +
+  geom_violin(alpha = .1,
+              show.legend = FALSE) + 
+  scale_y_log10(labels = label_dollar()) + 
+  theme_minimal() +
+  scale_fill_brewer(palette = "Dark2") + 
+  labs(x = "Part of a Franchise",
+       y = "Profit (US dollars)",
+       title = "Franchises Worth it?")
+```
+
+Does being apart of a franchise help with profits? The trends shows yes! The average profit shown by the box plot show that a franchise member movie has higher profits, but not by much (according to the logarithmic scale.) It also is noticed that the non-franchise members have more outliers with lower profits. The violin plot also shows this trend, the density of movies is at a higher profit for the franchise members, but not far behind is the non-members with a little less density and lower profit average. So a franchise should be considered for higher profits.
+
+**Note:** The scale of the y-axis is *not* linear, it is logarithmic.
+
+```{r}
+#| label: Franchise Table
+#| fig-alt: This table shows the numerical data for the previous graph. it shows Franchise Status,	Average Profit,	Median Profit,	Number of Movies, and percent of Movies Profitable. It shows that movies with a Franchise are more profitable.
+
+franchise_table <- movies_table %>%
+  group_by(is_franchise) %>%
+  summarize(avg_profit = mean(profit, na.rm = TRUE),
+            median_profit = median(profit, na.rm = TRUE),
+            n_movies = n(),
+            pct_profitable = mean(profit > 0) * 100) %>%
+  gt() %>%
+  fmt_currency(columns = c(avg_profit, median_profit), 
+               currency = "USD", 
+               decimals = 0) %>%
+  fmt_number(columns = c(pct_profitable), 
+             decimals = 1) %>%
+  cols_label(is_franchise = "Franchise Status",
+             avg_profit = "Average Profit",
+             median_profit = "Median Profit",
+             n_movies = "Number of Movies",
+             pct_profitable = "% of Movies Profitable") %>%
+  tab_header(title = "Profits by Franchise Status") %>%
+  tab_style(style = list(cell_fill(color = "lightgreen")),
+    locations = cells_body(rows = is_franchise == "Franchise"))
+
+franchise_table
+```
+
+This table shows the numerical data relating the the graph above ("Franchises Worth it?"). It can be seen that on average, movies apart of a franchise turn a way bigger profit (almost 5 times as much!) than standalone movies. It can be seen that 88.2% of franchise movies are profitable, compared to 54.6% profitable movies of standalone movies. This numerical data puts an emphasis on how much more profit franchise movies make compared to stand alone movies, it allows us to see the big gap without the logarithmic scale. In order to maximize profits, creating a franchise should be heavily considered.
+
+## So What Maximizes Profits?
+
+The most impactful way to maximize profit is to create a tagline for your movie. This will help your advertising and help reach your audience to make them want to watch your movie. You should also consider creating a franchise, as franchises make more profit than stand alone movies.
+
+In order to help further improve your profits, you need to achieve high ratings. Higher ratings are correlated to turning a profit at all ranges of budgets. The run time of your movie can effect your ratings and profits. A "sweet spot" was observed of ~85 to ~115 minutes to turn the most profit, however, movies >115 minutes also turn good profits; but movies < 85 minutes shouldn't be considered. This sweet spot will also help improve ratings.
+
+It is important to know that you don't need a high budget to create a profit. Higher budgets are correlated to a higher revenue, but you can turn a profit, and lose money, at all ranges of budget. Higher budget doesn't improve your probability of making a profit VS losing money, but it can help bring in more revenue. 
+
+[^1]: "Top genres in the United States and Canada between 1995 to 2024, by total box office revenue" [Statista.com](https://www.statista.com/topics/12896/horror-movies/?srsltid=AfmBOoq76DWNqHsCFu9z-6a3A-ISm3qR53Ol_QcqQ6A-iUUlenopz5je#editorsPicks)
+[^2]:"Number of horror movies released in the United States and Canada between 2000 and 2024"[Statista.com](https://www.statista.com/topics/12896/horror-movies/?srsltid=AfmBOoq76DWNqHsCFu9z-6a3A-ISm3qR53Ol_QcqQ6A-iUUlenopz5je#editorsPicks)
+[^3]: "Horror Never Dies: What Keeps Audiences Coming Back for More" [nrgmr.com](https://www.nrgmr.com/our-thinking/entertainment/horror-never-dies-what-keeps-audiences-coming-back-for-more/)
+[^4]: Information about Horror Movies data set [Github](https://github.com/tashapiro/horror-movies?tab=readme-ov-file)
